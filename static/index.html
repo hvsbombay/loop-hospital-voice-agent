@@ -96,6 +96,10 @@
         <p class="subtitle">Hospital Network Assistant</p>
         <button class="microphone-btn" id="recordBtn">🎤</button>
         <p class="label">Start Conversation</p>
+        <div style="margin-top:20px; display:flex; gap:8px; justify-content:center;">
+            <input id="textQuery" type="text" placeholder="Type your question (e.g. Tell me 3 hospitals around Bangalore)" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ddd;" />
+            <button id="sendText" style="padding:10px 16px; border-radius:8px; border:none; background:#667eea; color:white; cursor:pointer;">Send</button>
+        </div>
         <div id="output">
             <strong>Response:</strong>
             <p id="responseText"></p>
@@ -125,7 +129,10 @@
                     mediaRecorder.onstop = async () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                         // Send to backend
-                        sendAudioToBackend(audioBlob);
+                                    // For Part 1 demo we don't have an STT service configured.
+                                    // Prompt user to paste/type their query or use the text box below.
+                                    responseText.textContent = 'Audio recorded. Please type your query in the box below and press Send.';
+                                    output.classList.add('active');
                     };
                     
                     mediaRecorder.start();
@@ -154,6 +161,26 @@
                 responseText.textContent = 'Error: ' + err.message;
             }
         }
+
+        async function sendTextQuery() {
+            const q = document.getElementById('textQuery').value;
+            if (!q) return;
+            responseText.textContent = 'Thinking...';
+            output.classList.add('active');
+            try {
+                const resp = await fetch('http://localhost:8000/converse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: q })
+                });
+                const data = await resp.json();
+                responseText.textContent = data.speech || JSON.stringify(data);
+            } catch (e) {
+                responseText.textContent = 'Error connecting to backend: ' + e.message;
+            }
+        }
+
+        document.getElementById('sendText').addEventListener('click', sendTextQuery);
     </script>
 </body>
 </html>

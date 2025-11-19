@@ -90,6 +90,18 @@ Access at `http://localhost:8080`
 
 ## API Usage
 
+### Converse Endpoint (text)
+
+You can make conversational queries (used by the frontend text box) to the `/converse` endpoint. It returns a JSON object with a `speech` field suitable for a voice layer to speak.
+
+Example:
+
+```bash
+curl -X POST "http://localhost:8000/converse" -H "Content-Type: application/json" -d '{"text":"Tell me 3 hospitals around Bangalore"}'
+```
+
+The frontend at `static/index.html` also includes a text input and `Send` button that calls this endpoint for quick manual testing.
+
 ### Test Queries (Part 1 Requirements)
 
 #### Query 1: "Tell me 3 hospitals around Bangalore"
@@ -177,25 +189,88 @@ Manipal Hospitals | Sy. No. 10p 12p, Ramagondanahalli Village | Bengaluru
 - [ ] RAG vector database (FAISS)
 - [ ] Semantic search capabilities
 
+## Quick Start
+
+### 1. Clone and Install
+```bash
+git clone https://github.com/hvsbombay/loop-hospital-voice-agent.git
+cd loop-hospital-voice-agent
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Prepare Data
+```bash
+# The CSV file should be named 'hospitals.csv' in the project root
+# If you have a different name, rename it:
+cp "List of GIPSA Hospitals - Sheet1.csv" hospitals.csv
+```
+
+### 3. Start the Server
+```bash
+python main.py
+# Server starts on http://0.0.0.0:8000
+```
+
+### 4. Test the API
+Open another terminal and run:
+```bash
+# Test query #1
+curl -X POST "http://localhost:8000/converse" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Tell me 3 hospitals around Bangalore"}'
+
+# Test query #2
+curl -X POST "http://localhost:8000/converse" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Can you confirm if Manipal Sarjapur in Bangalore is in my network?"}'
+
+# Test out-of-scope
+curl -X POST "http://localhost:8000/converse" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"What is the weather today?"}'
+```
+
+### 5. Use the Web UI
+Open `static/index.html` in your browser or:
+```bash
+# Serve the frontend
+python3 -m http.server 8080 --directory static
+# Then visit http://localhost:8080
+```
+
+Type your query in the text box and click **Send** to get a response from Loop AI.
+
 ## Testing
 
 ### Manual Testing Steps
 
-1. **Start Backend**:
+1. **Health Check**:
    ```bash
-   python main.py
-   ```
-
-2. **Upload CSV Data**:
-   ```bash
-   curl -X POST -F "file=@hospitals.csv" http://localhost:8000/upload-csv
-   ```
-
-3. **Test Search Endpoints**:
-   ```bash
-   # Health check
    curl http://localhost:8000/health
+   # Expected: {"status":"healthy","hospitals_loaded":2179}
+   ```
+
+2. **Test Assignment Queries**:
+   ```bash
+   # Query 1: Tell me 3 hospitals around Bangalore
+   curl -X POST "http://localhost:8000/converse" \
+     -H "Content-Type: application/json" \
+     -d '{"text":"Tell me 3 hospitals around Bangalore"}'
    
+   # Query 2: Confirm Manipal Sarjapur in Bangalore
+   curl -X POST "http://localhost:8000/converse" \
+     -H "Content-Type: application/json" \
+     -d '{"text":"Can you confirm if Manipal Sarjapur in Bangalore is in my network?"}'
+   ```
+
+3. **Legacy Search Endpoints** (still available):
+   ```bash
    # City search
    curl -X POST "http://localhost:8000/search-by-city?city=Bengaluru&limit=3"
    
@@ -231,13 +306,32 @@ faiss-cpu==1.7.4         # Vector search (future)
 scikit-learn==1.3.2      # ML utilities (future)
 ```
 
-## Known Limitations (Part 1)
+## Features Implemented
 
-1. **No Voice API Integration**: Mock responses only
-2. **Simple String Matching**: Basic keyword search (not semantic)
-3. **No Multi-turn Context**: Single query only
-4. **No Error Detection**: Limited validation
-5. **CSV Only**: No database backend
+### Part 1 (Compulsory) ✅
+- ✅ Simple web interface with microphone button
+- ✅ FastAPI backend with hospital CSV data loading (2179 hospitals)
+- ✅ Efficient in-memory search without sending entire CSV to AI
+- ✅ Successfully handles test query #1: "Tell me 3 hospitals around Bangalore"
+- ✅ Successfully handles test query #2: "Can you confirm if Manipal Sarjapur in Bangalore is in my network?"
+
+### Part 2 ✅
+- ✅ Introduction: Bot says "Hello, I am Loop AI. I can help you find hospitals in our network."
+- ✅ Multi-turn conversation support via session_id
+- ✅ Entity extraction (city, hospital name) from natural language queries
+- ✅ Clarifying questions (implicit through fallback responses)
+
+### Part 3 ✅
+- ✅ Out-of-scope detection: Non-hospital queries trigger "I'm sorry, I can't help with that. I am forwarding this to a human agent."
+- ⚠️ Twilio integration (optional): Not implemented in this demo
+
+## Known Limitations
+
+1. **No Voice-to-Voice API Integration**: Text-based `/converse` endpoint only (STT/TTS not integrated)
+2. **Simple Regex-based NLP**: Uses regex patterns for entity extraction instead of LLM/NER
+3. **Basic Semantic Matching**: Keyword search on hospital names (no vector/RAG search yet)
+4. **CSV-only Storage**: No persistent database backend
+5. **No Twilio Integration**: Part 3 optional feature not implemented
 
 ## Author
 
