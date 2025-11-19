@@ -2,8 +2,8 @@
 Backend server for voice-based hospital search using FastAPI
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -14,10 +14,26 @@ from typing import List, Dict, Optional
 import logging
 import re
 import uuid
+from twilio.twiml.voice_response import VoiceResponse, Gather
+from twilio.rest import Client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Twilio Configuration (set these via environment variables)
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
+TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '')
+
+# Initialize Twilio client if credentials are provided
+twilio_client = None
+if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+    try:
+        twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        logger.info("Twilio client initialized successfully")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Twilio client: {e}")
 
 app = FastAPI(title="Loop Hospital Voice Agent")
 
@@ -80,6 +96,122 @@ def load_hospital_data():
     else:
         logger.warning("CSV file not found")
         HOSPITAL_DB = pd.DataFrame()
+
+@app.post("/twilio/voice")
+async def twilio_voice_webhook(request: Request):
+    """Handle incoming Twilio voice calls"""
+    response = VoiceResponse()
+    
+    # Welcome message
+    response.say(
+        "Hello! I am Loop A I, your hospital network assistant. "
+        "You can ask me about hospitals in our network. "
+        "For example, tell me hospitals in Mumbai, or ask if a specific hospital is in our network.",
+        voice='Polly.Joanna',
+        language='en-US'
+    )
+    
+    # Gather user input
+    gather = Gather(
+        input='speech',
+        action='/twilio/process-speech',
+        method='POST',
+        speech_timeout='auto',
+        language='en-US'
+    )
+    gather.say(
+        "What would you like to know?",
+        voice='Polly.Joanna',
+        language='en-US'
+    )
+    response.append(gather)
+    
+    # Fallback if no input
+    response.say(
+        "I didn't hear anything. Please call again.",
+        voice='Polly.Joanna',
+        language='en-US'
+    )
+    
+    return Response(content=str(response), media_type="application/xml")
+
+
+@app.post("/twilio/process-speech")
+async def twilio_process_speech(request: Request, SpeechResult: str = Form(None), CallSid: str = Form(None)):
+    """Process speech input from Twilio and return response"""
+    response = VoiceResponse()
+    
+    if not SpeechResult:
+        response.say(
+            "I didn't catch that. Please try again.",
+            voice='Polly.Joanna',
+            language='en-US'
+        )
+        response.redirect('/twilio/voice')
+        return Response(content=str(response), media_type="application/xml")
+    
+    logger.info(f"Received speech: {SpeechResult} from CallSid: {CallSid}")
+    
+    # Use the existing converse endpoint logic
+    session_id = CallSid  # Use CallSid as session_id for call continuity
+    
+    try:
+        # Process the query through our conversation handler
+        converse_request = ConverseRequest(text=SpeechResult, session_id=session_id)
+        result = await converse(converse_request)
+        
+        bot_response = result.get('speech', 'I apologize, I encountered an error.')
+        
+        # Speak the response
+        response.say(
+            bot_response,
+            voice='Polly.Joanna',
+            language='en-US'
+        )
+        
+        # Ask for follow-up
+        gather = Gather(
+            input='speech',
+            action='/twilio/process-speech',
+            method='POST',
+            speech_timeout='auto',
+            language='en-US'
+        )
+        gather.say(
+            "Is there anything else you'd like to know?",
+            voice='Polly.Joanna',
+            language='en-US'
+        )
+        response.append(gather)
+        
+        # Goodbye message
+        response.say(
+            "Thank you for using Loop A I. Goodbye!",
+            voice='Polly.Joanna',
+            language='en-US'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error processing speech: {e}")
+        response.say(
+            "I apologize, I encountered an error processing your request. Please try again.",
+            voice='Polly.Joanna',
+            language='en-US'
+        )
+    
+    return Response(content=str(response), media_type="application/xml")
+
+
+@app.get("/twilio/status")
+async def twilio_status():
+    """Check Twilio integration status"""
+    status = {
+        "twilio_configured": twilio_client is not None,
+        "phone_number": TWILIO_PHONE_NUMBER if TWILIO_PHONE_NUMBER else "Not configured",
+        "account_sid": TWILIO_ACCOUNT_SID[:8] + "..." if TWILIO_ACCOUNT_SID else "Not configured"
+    }
+    return status
+
 
 @app.on_event("startup")
 async def startup_event():

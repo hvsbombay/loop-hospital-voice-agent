@@ -182,12 +182,12 @@ Manipal Hospitals | Sy. No. 10p 12p, Ramagondanahalli Village | Bengaluru
 - [ ] Add follow-up question handling
 - [ ] Multi-turn conversation support
 
-### Part 3: Advanced Features
-- [ ] Out-of-scope query detection
-- [ ] Error handling & fallbacks
-- [ ] Twilio integration for phone numbers
-- [ ] RAG vector database (FAISS)
-- [ ] Semantic search capabilities
+### Part 3: Advanced Features ✅
+- [x] Out-of-scope query detection
+- [x] Error handling & fallbacks
+- [x] **Twilio integration for phone calls** 📞
+- [ ] RAG vector database (FAISS) - Optional enhancement
+- [ ] Semantic search capabilities - Optional enhancement
 
 ## Quick Start
 
@@ -323,15 +323,34 @@ scikit-learn==1.3.2      # ML utilities (future)
 
 ### Part 3 ✅
 - ✅ Out-of-scope detection: Non-hospital queries trigger "I'm sorry, I can't help with that. I am forwarding this to a human agent."
-- ⚠️ Twilio integration (optional): Not implemented in this demo
+- ✅ **Twilio integration**: Phone call support with voice webhooks - See [TWILIO_SETUP.md](TWILIO_SETUP.md)
+
+## Twilio Phone Integration 📞
+
+Loop AI now supports phone calls via Twilio! Users can call a phone number and interact with the voice assistant.
+
+**Features:**
+- ✅ Incoming call handling
+- ✅ Speech-to-text recognition
+- ✅ Text-to-speech responses
+- ✅ Multi-turn conversation over phone
+- ✅ Session continuity using CallSid
+
+**Setup:** See [TWILIO_SETUP.md](TWILIO_SETUP.md) for complete setup instructions.
+
+**Quick Start:**
+1. Get Twilio credentials from [console.twilio.com](https://console.twilio.com)
+2. Create `.env` file with your credentials
+3. Install: `pip install twilio`
+4. Configure webhook: `https://your-domain.com/twilio/voice`
+5. Call your Twilio number and talk to Loop AI!
 
 ## Known Limitations
 
-1. **No Voice-to-Voice API Integration**: Text-based `/converse` endpoint only (STT/TTS not integrated)
-2. **Simple Regex-based NLP**: Uses regex patterns for entity extraction instead of LLM/NER
-3. **Basic Semantic Matching**: Keyword search on hospital names (no vector/RAG search yet)
-4. **CSV-only Storage**: No persistent database backend
-5. **No Twilio Integration**: Part 3 optional feature not implemented
+1. **Simple Regex-based NLP**: Uses regex patterns for entity extraction instead of LLM/NER
+2. **Basic Semantic Matching**: Keyword search on hospital names (no vector/RAG search yet)
+3. **CSV-only Storage**: No persistent database backend
+4. **Twilio requires public URL**: Use ngrok for local testing or deploy to cloud for production
 
 ## Author
 
