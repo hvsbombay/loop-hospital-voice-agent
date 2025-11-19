@@ -193,11 +193,18 @@ async def converse(req: ConverseRequest):
         city_norm = city
         results = await search_by_city(city=city_norm, limit=3)
         if results.get('status') == 'success':
-            names = [h.get('HOSPITAL NAME', h.get('HOSPITAL_NAME', '')) for h in results['hospitals']]
+            hospitals = results['hospitals']
             speech_lines = []
             if intro:
                 speech_lines.append(intro)
-            speech_lines.append(f"Here are {len(names)} hospitals around {city_norm}: {', '.join(names)}.")
+            
+            # Create detailed list of hospitals
+            speech_lines.append(f"I found {len(hospitals)} hospitals in {city_norm}:")
+            for idx, h in enumerate(hospitals, 1):
+                name = h.get('HOSPITAL NAME', h.get('HOSPITAL_NAME', 'Unknown'))
+                address = h.get('Address', 'Address not available')
+                speech_lines.append(f"{idx}. {name}, located at {address}")
+            
             speech = ' '.join(speech_lines)
             session["turns"].append({"user": text, "bot": speech})
             return {"session_id": session_id, "speech": speech, "hospitals": results['hospitals']}
@@ -206,22 +213,39 @@ async def converse(req: ConverseRequest):
     if hospital_name and city:
         res = await search_hospitals(query=hospital_name, city=city)
         if res.get('status') == 'success' and res.get('count', 0) > 0:
+            hospitals = res['hospitals']
             # Additional filtering: if user mentioned "Sarjapur", check the address
             if 'sarjapur' in text.lower():
-                filtered = [h for h in res['hospitals'] if 'sarjapur' in h.get('Address', '').lower()]
+                filtered = [h for h in hospitals if 'sarjapur' in h.get('Address', '').lower()]
                 if filtered:
-                    speech = f"Yes. I found {len(filtered)} matching hospital(s) for {hospital_name} near Sarjapur in {city}."
+                    speech_parts = []
                     if intro:
-                        speech = intro + ' ' + speech
+                        speech_parts.append(intro)
+                    speech_parts.append(f"Yes, {hospital_name} in {city} is in our network.")
+                    speech_parts.append(f"I found {len(filtered)} location(s) near Sarjapur:")
+                    for idx, h in enumerate(filtered, 1):
+                        name = h.get('HOSPITAL NAME', 'Unknown')
+                        addr = h.get('Address', 'Address not available')
+                        speech_parts.append(f"{idx}. {name} at {addr}")
+                    speech = ' '.join(speech_parts)
                     session["turns"].append({"user": text, "bot": speech})
                     return {"session_id": session_id, "speech": speech, "hospitals": filtered}
-            speech = f"Yes. I found {res['count']} matching hospital(s) for {hospital_name} in {city}."
+            
+            # General hospital confirmation with details
+            speech_parts = []
             if intro:
-                speech = intro + ' ' + speech
+                speech_parts.append(intro)
+            speech_parts.append(f"Yes, {hospital_name} in {city} is in our network.")
+            speech_parts.append(f"I found {len(hospitals)} location(s):")
+            for idx, h in enumerate(hospitals[:3], 1):  # Limit to 3 for brevity
+                name = h.get('HOSPITAL NAME', 'Unknown')
+                addr = h.get('Address', 'Address not available')
+                speech_parts.append(f"{idx}. {name} at {addr}")
+            speech = ' '.join(speech_parts)
             session["turns"].append({"user": text, "bot": speech})
             return {"session_id": session_id, "speech": speech, "hospitals": res['hospitals']}
         else:
-            speech = f"I could not find {hospital_name} in {city} in the network."
+            speech = f"I'm sorry, I could not find {hospital_name} in {city} in our network. Please check the spelling or try a different hospital."
             if intro:
                 speech = intro + ' ' + speech
             session["turns"].append({"user": text, "bot": speech})

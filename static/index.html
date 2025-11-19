@@ -349,8 +349,8 @@
                 const data = await resp.json();
                 const aiResponse = data.speech || JSON.stringify(data);
                 
-                // Display text response
-                responseText.textContent = `📝 You: "${query}"\n\n🤖 Loop AI: ${aiResponse}`;
+                // Display text response with clear formatting
+                responseText.innerHTML = `<div style="margin-bottom: 15px;"><strong>📝 You:</strong> "${query}"</div><div><strong>🤖 Loop AI:</strong><br>${aiResponse}</div>`;
                 showStatus('🔊 Speaking response...', 'success');
                 
                 // Speak the response
@@ -395,8 +395,8 @@
                 const data = await resp.json();
                 const aiResponse = data.speech || JSON.stringify(data);
                 
-                // Display text response
-                responseText.textContent = `📝 You: "${q}"\n\n🤖 Loop AI: ${aiResponse}`;
+                // Display text response with clear formatting
+                responseText.innerHTML = `<div style="margin-bottom: 15px;"><strong>📝 You:</strong> "${q}"</div><div><strong>🤖 Loop AI:</strong><br>${aiResponse}</div>`;
                 showStatus('🔊 Speaking response...', 'success');
                 document.getElementById('textQuery').value = ''; // Clear input
                 
