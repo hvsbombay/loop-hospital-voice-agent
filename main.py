@@ -164,11 +164,75 @@ def wants_all_hospitals(text: str) -> bool:
     return "all" in q and "hospital" in q
 
 
+def handle_general_conversation(query: str, intro: Optional[str] = None) -> Optional[str]:
+    """Handle common general questions and greetings like a normal AI assistant."""
+    q = query.lower().strip()
+    
+    # Greetings - use word boundaries to avoid false matches (e.g., "Delhi" contains "hi")
+    import re
+    greetings = [r'\bhello\b', r'\bhi\b', r'\bhey\b', r'\bgood morning\b', r'\bgood afternoon\b', r'\bgood evening\b']
+    if any(re.search(greeting, q) for greeting in greetings):
+        responses = [
+            "Hello! I'm Loop AI, your hospital network assistant. How can I help you today?",
+            "Hi there! I'm here to help you find hospitals in our network. What can I do for you?",
+            "Hey! I can help you find hospitals and answer healthcare queries. What would you like to know?"
+        ]
+        return responses[hash(q) % len(responses)]
+    
+    # How are you
+    if any(phrase in q for phrase in ["how are you", "how are you doing", "how's it going"]):
+        return "I'm doing great, thank you for asking! I'm here to help you find hospitals in our network. What can I assist you with?"
+    
+    # What can you do / help with
+    if any(phrase in q for phrase in ["what can you do", "what can you help", "what do you do", "your capabilities", "what are your features"]):
+        return "I can help you find hospitals in our network across India! You can ask me things like: 'Tell me hospitals in Mumbai', 'Is Manipal Hospital in Bangalore?', 'Show me 5 hospitals in Delhi', or 'Give me hospitals near my location'. What would you like to know?"
+    
+    # Who are you / what are you
+    if any(phrase in q for phrase in ["who are you", "what are you", "tell me about yourself"]):
+        return "I'm Loop AI, a voice-enabled assistant designed to help you find hospitals in the Loop Health network. I can search hospitals by city, check if specific hospitals are in our network, and provide details about healthcare facilities. How can I help you today?"
+    
+    # Time/Date questions
+    if "what time" in q or "what's the time" in q:
+        from datetime import datetime
+        return f"The current time is {datetime.now().strftime('%I:%M %p')}. Is there anything else I can help you with regarding our hospital network?"
+    
+    if "what date" in q or "what's the date" in q or "today's date" in q:
+        from datetime import datetime
+        return f"Today is {datetime.now().strftime('%B %d, %Y')}. Would you like to search for hospitals or get healthcare information?"
+    
+    # Weather (polite deflection)
+    if "weather" in q:
+        return "I'm specialized in hospital information, so I don't have weather data. But I can help you find hospitals in any city! Which city are you interested in?"
+    
+    # Jokes
+    if "joke" in q or "make me laugh" in q:
+        jokes = [
+            "Why did the doctor carry a red pen? In case they needed to draw blood! Now, would you like to find a hospital?",
+            "What did the doctor say to the rocket ship? Time to get your booster shot! Anyway, how can I help you with hospital information?",
+            "Why did the nurse always carry a red marker? For drawing blood samples! Now, what hospitals can I help you find?"
+        ]
+        return jokes[hash(q) % len(jokes)]
+    
+    # Thank you (already handled elsewhere, but adding here for completeness)
+    if q in ["thank you", "thanks", "thank you very much"]:
+        return "You're welcome! Let me know if you need anything else."
+    
+    return None
+
+
 def is_in_scope(query: str, session_context=None) -> bool:
     """Detect if the user is asking about hospitals/network or continuing conversation."""
     if not query:
         return False
     q = query.lower()
+    
+    # Always in scope for general conversation
+    general_keywords = [
+        "hello", "hi", "hey", "how are you", "what can you", "who are you",
+        "time", "date", "joke", "weather", "help", "capabilities"
+    ]
+    if any(keyword in q for keyword in general_keywords):
+        return True
     
     # Conversational continuations
     continuations = [
@@ -348,6 +412,13 @@ async def converse(req: ConverseRequest):
     if text_lower in ["yes", "sure", "okay", "ok", "yeah"] and session_ctx.awaiting_clarification:
         speech = "Great! Could you tell me which city or area you're interested in?"
         session_ctx.awaiting_clarification = False
+        session_ctx.turns.append({"user": text, "bot": speech})
+        return {"session_id": session_id, "speech": speech}
+    
+    # Handle general conversation (greetings, common questions, etc.)
+    general_response = handle_general_conversation(text, intro)
+    if general_response:
+        speech = general_response
         session_ctx.turns.append({"user": text, "bot": speech})
         return {"session_id": session_id, "speech": speech}
     
