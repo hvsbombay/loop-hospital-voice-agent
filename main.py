@@ -179,41 +179,61 @@ def is_in_scope(query: str, session_context=None) -> bool:
     if any(cont in q for cont in continuations):
         return True
     
-    # Hospital-related keywords
-    keywords = ["hospital", "hospitals", "clinic", "network", "in my network", "around", "near", "location", "address"]
+    # Hospital-related keywords (including medical facility types)
+    keywords = [
+        "hospital", "hospitals", "clinic", "clinics", "medical", "centre", "center",
+        "network", "in my network", "around", "near", "location", "address",
+        "kapoor", "manipal", "fortis", "apollo"  # Common hospital brand names
+    ]
     return any(k in q for k in keywords)
 
 
 def extract_city_from_text(text: str) -> Optional[str]:
     # match patterns like 'around Bangalore' or 'in Bangalore' or 'in Bengaluru'
-    # Stop at common delimiters like 'is', 'in my', etc., or end of string
+    # Exclude common non-city words like "database", "network", etc.
     m = re.search(r"\b(?:around|in|near)\s+([A-Za-z]{3,20})\b", text, re.IGNORECASE)
     if m:
-        return normalize_city(m.group(1))
+        candidate = m.group(1)
+        # Exclude non-city words
+        excluded = ["database", "network", "my", "the", "this", "that", "these", "those"]
+        if candidate.lower() not in excluded:
+            return normalize_city(candidate)
     return None
 
 
 def extract_hospital_name(text: str) -> Optional[str]:
-    # crude heuristics: look for 'confirm if <name>' or 'is <name> in'
-    m = re.search(r"confirm if\s+([A-Za-z0-9\s'\-]+?)\s+(?:in|at)\s+", text, re.IGNORECASE)
+    # Handle "is there any <hospital name>" pattern - stop before "in database/network"
+    m = re.search(r"(?:is there any|there any|any)\s+((?:[A-Z][a-z]+\s*)+(?:Hospital|Centre|Center|Clinic|Medical)[A-Za-z\s]*?)(?:\s+in\s+(?:database|network|my network)|\?|$)", text, re.IGNORECASE)
     if m:
         candidate = m.group(1).strip()
-        # If it looks like "Manipal Sarjapur", just extract the hospital brand
         if 'manipal' in candidate.lower():
             return 'Manipal'
         return candidate
+    
+    # Look for 'confirm if <name> in/at'
+    m = re.search(r"confirm if\s+([A-Za-z0-9\s'\-]+?)\s+(?:in|at)\s+", text, re.IGNORECASE)
+    if m:
+        candidate = m.group(1).strip()
+        if 'manipal' in candidate.lower():
+            return 'Manipal'
+        return candidate
+    
+    # Look for 'is/are <name> in/at <city>'
     m = re.search(r"(?:is|are)\s+([A-Za-z0-9\s'\-]+?)\s+(?:in|at)\s+", text, re.IGNORECASE)
     if m:
         candidate = m.group(1).strip()
         if 'manipal' in candidate.lower():
             return 'Manipal'
         return candidate
-    m = re.search(r"([A-Za-z0-9\s'\-]+hospital[s]?|[A-Za-z0-9\s'\-]+manipal[A-Za-z0-9\s'\-]*)", text, re.IGNORECASE)
+    
+    # Generic hospital name pattern (with medical keywords)
+    m = re.search(r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Hospital|Centre|Center|Clinic|Medical))", text)
     if m:
         candidate = m.group(1).strip()
         if 'manipal' in candidate.lower():
             return 'Manipal'
         return candidate
+    
     return None
 
 
@@ -316,7 +336,7 @@ async def converse(req: ConverseRequest):
         total_count = len(city_matches)
         if total_count == 0:
             speech = (intro + ' ' if intro else '') + f"I could not find hospitals in {city_norm}. Do you want to try another city?"
-            session["turns"].append({"user": text, "bot": speech})
+            session_ctx.turns.append({"user": text, "bot": speech})
             return {"session_id": session_id, "speech": speech, "hospitals": []}
 
         if wants_all_hospitals(text) and total_count > 5:
@@ -426,6 +446,53 @@ async def converse(req: ConverseRequest):
                 speech += "Could you check the spelling or try a different hospital or city?"
             
             session_ctx.update_context(city=city, hospital_name=hospital_name)
+            session_ctx.turns.append({"user": text, "bot": speech})
+            return {"session_id": session_id, "speech": speech, "hospitals": []}
+
+    # 3) Handle hospital name query without city (search across all hospitals)
+    if hospital_name and not city:
+        res = await search_hospitals(query=hospital_name, city=None)
+        if res.get('status') == 'success' and res.get('count', 0) > 0:
+            hospitals = res['hospitals']
+            cities = list(set([h.get('CITY', 'Unknown') for h in hospitals]))
+            
+            speech_parts = []
+            if intro:
+                speech_parts.append(intro)
+            
+            if len(hospitals) == 1:
+                h = hospitals[0]
+                name = h.get('HOSPITAL NAME', 'Unknown')
+                addr = h.get('Address', 'Address not available')
+                city_name = h.get('CITY', 'Unknown')
+                speech_parts.append(f"Yes, I found {name} in our network.")
+                speech_parts.append(f"It is located at {addr} in {city_name}.")
+            else:
+                speech_parts.append(f"Yes, I found {len(hospitals)} locations with '{hospital_name}' in our network.")
+                if len(cities) == 1:
+                    speech_parts.append(f"All are in {cities[0]}:")
+                else:
+                    speech_parts.append(f"They are across {len(cities)} cities:")
+                for idx, h in enumerate(hospitals[:3], 1):
+                    name = h.get('HOSPITAL NAME', 'Unknown')
+                    addr = h.get('Address', 'Address not available')
+                    city_name = h.get('CITY', 'Unknown')
+                    speech_parts.append(f"{idx}. {name} at {addr}, {city_name}")
+                if len(hospitals) > 3:
+                    speech_parts.append(f"And {len(hospitals) - 3} more locations. Would you like details about a specific city?")
+            
+            speech = ' '.join(speech_parts)
+            session_ctx.update_context(hospital_name=hospital_name, results=hospitals, topic='confirm')
+            session_ctx.turns.append({"user": text, "bot": speech})
+            return {"session_id": session_id, "speech": speech, "hospitals": hospitals}
+        else:
+            speech_parts = []
+            if intro:
+                speech_parts.append(intro)
+            speech_parts.append(f"I'm sorry, I could not find '{hospital_name}' in our network database.")
+            speech_parts.append("Could you check the spelling or try a different hospital name?")
+            speech = ' '.join(speech_parts)
+            session_ctx.update_context(hospital_name=hospital_name)
             session_ctx.turns.append({"user": text, "bot": speech})
             return {"session_id": session_id, "speech": speech, "hospitals": []}
 
