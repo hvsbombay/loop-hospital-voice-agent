@@ -240,7 +240,8 @@ def is_in_scope(query: str, session_context=None) -> bool:
     continuations = [
         "yes", "no", "sure", "okay", "next", "more", "show me", "tell me more",
         "what about", "how about", "thanks", "thank you", "that's helpful",
-        "tell me about", "any other", "another", "different", "else"
+        "tell me about", "any other", "another", "different", "else",
+        "yeah", "yep", "yup", "please"
     ]
     if any(cont in q for cont in continuations):
         return True
@@ -411,11 +412,31 @@ async def converse(req: ConverseRequest):
         return {"session_id": session_id, "speech": speech}
     
     # Handle affirmations with context
-    if text_lower in ["yes", "sure", "okay", "ok", "yeah"] and session_ctx.awaiting_clarification:
-        speech = "Great! Could you tell me which city or area you're interested in?"
-        session_ctx.awaiting_clarification = False
-        session_ctx.turns.append({"user": text, "bot": speech})
-        return {"session_id": session_id, "speech": speech}
+    if text_lower in ["yes", "sure", "okay", "ok", "yeah", "yep", "yup", "please"]:
+        # Check if there are remaining hospitals to show
+        if session_ctx.last_results and len(session_ctx.last_results) > 3:
+            # Show the remaining hospitals
+            remaining_hospitals = session_ctx.last_results[3:]  # Get hospitals after the first 3
+            speech_lines = [f"Sure! Here are the remaining {len(remaining_hospitals)} locations:"]
+            for idx, h in enumerate(remaining_hospitals, 4):  # Start from 4
+                name = h.get('HOSPITAL NAME', 'Unknown')
+                addr = h.get('Address', 'Address not available')
+                city_name = h.get('CITY', '')
+                if city_name:
+                    speech_lines.append(f"{idx}. {name} at {addr}, {city_name}")
+                else:
+                    speech_lines.append(f"{idx}. {name} at {addr}")
+            speech_lines.append("Is there anything else you'd like to know?")
+            speech = ' '.join(speech_lines)
+            session_ctx.turns.append({"user": text, "bot": speech})
+            return {"session_id": session_id, "speech": speech, "hospitals": remaining_hospitals}
+        
+        # If awaiting clarification for city-based search
+        if session_ctx.awaiting_clarification:
+            speech = "Great! Could you tell me which city or area you're interested in?"
+            session_ctx.awaiting_clarification = False
+            session_ctx.turns.append({"user": text, "bot": speech})
+            return {"session_id": session_id, "speech": speech}
     
     # Handle general conversation (greetings, common questions, etc.)
     general_response = handle_general_conversation(text, intro)
