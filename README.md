@@ -345,6 +345,19 @@ Loop AI now supports phone calls via Twilio! Users can call a phone number and i
 4. Configure webhook: `https://your-domain.com/twilio/voice`
 5. Call your Twilio number and talk to Loop AI!
 
+### Configure your Twilio number automatically
+
+Once your FastAPI server is reachable from the internet (for example via `ngrok http 8000` or `cloudflared tunnel --url http://localhost:8000`), run the helper script:
+
+```bash
+PUBLIC_URL="https://<your-public-host>.ngrok-free.app"
+.venv/bin/python scripts/update_twilio_webhook.py \
+  --public-url "$PUBLIC_URL" \
+  --phone-number +12072043914
+```
+
+The script finds the phone number inside your Twilio account and points its Voice URL to `<public>/twilio/voice`, which in turn routes Gather responses to `<public>/twilio/process-speech`.
+
 ## Known Limitations
 
 1. **Simple Regex-based NLP**: Uses regex patterns for entity extraction instead of LLM/NER

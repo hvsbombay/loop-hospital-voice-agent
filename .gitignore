@@ -24,6 +24,9 @@ test_extract.py
 *.swp
 *.swo
 
+# Environment
+.env
+
 # OS
 .DS_Store
 Thumbs.db

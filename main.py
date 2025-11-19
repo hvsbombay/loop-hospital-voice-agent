@@ -14,6 +14,7 @@ from typing import List, Dict, Optional
 import logging
 import re
 import uuid
+from dotenv import load_dotenv
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
 
@@ -22,6 +23,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Twilio Configuration (set these via environment variables)
+load_dotenv()
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '')
@@ -224,7 +226,7 @@ async def health_check():
     return {"status": "healthy", "hospitals_loaded": len(HOSPITAL_DB) if HOSPITAL_DB is not None else 0}
 
 @app.post("/search-hospitals")
-async def search_hospitals(query: str, city: Optional[str] = None):
+async def search_hospitals(query: str, city: Optional[str] = None, limit: Optional[int] = 5):
     """Search for hospitals by name/keywords"""
     if HOSPITAL_DB is None or HOSPITAL_DB.empty:
         raise HTTPException(status_code=500, detail="Hospital database not loaded")
@@ -241,9 +243,16 @@ async def search_hospitals(query: str, city: Optional[str] = None):
     if results.empty:
         return {"status": "no_results", "message": f"No hospitals found for '{query}'"}
     
-    # Return limited results
-    hospitals = results.head(5).to_dict('records')
-    return {"status": "success", "count": len(hospitals), "hospitals": hospitals}
+    total_matches = len(results)
+    if limit is not None and limit > 0:
+        results = results.head(limit)
+    hospitals = results.to_dict('records')
+    return {
+        "status": "success",
+        "count": len(hospitals),
+        "total_matches": total_matches,
+        "hospitals": hospitals
+    }
 
 @app.post("/search-by-city")
 async def search_by_city(city: str, limit: int = 3):
@@ -648,7 +657,7 @@ async def converse(req: ConverseRequest):
 
     # 2) Confirm if hospital X in city Y is in network
     if hospital_name and city:
-        res = await search_hospitals(query=hospital_name, city=city)
+        res = await search_hospitals(query=hospital_name, city=city, limit=0)
         if res.get('status') == 'success' and res.get('count', 0) > 0:
             hospitals = res['hospitals']
             # Additional filtering: if user mentioned "Sarjapur", check the address
@@ -706,7 +715,7 @@ async def converse(req: ConverseRequest):
 
     # 3) Handle hospital name query without city (search across all hospitals)
     if hospital_name and not city:
-        res = await search_hospitals(query=hospital_name, city=None)
+        res = await search_hospitals(query=hospital_name, city=None, limit=0)
         if res.get('status') == 'success' and res.get('count', 0) > 0:
             hospitals = res['hospitals']
             cities = list(set([h.get('CITY', 'Unknown') for h in hospitals]))

@@ -13,7 +13,9 @@
         }
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 200% 200%;
+            animation: gradientShift 15s ease infinite;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -21,6 +23,11 @@
             padding: 20px;
             position: relative;
             overflow-x: hidden;
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
         
         /* Animated background particles */
@@ -48,17 +55,22 @@
         }
         
         .container {
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
             border-radius: 30px;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.3), 0 0 100px rgba(102, 126, 234, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             padding: 50px 40px;
             max-width: 700px;
             width: 100%;
             text-align: center;
             position: relative;
             z-index: 1;
-            animation: slideUp 0.6s ease-out;
+            animation: slideUp 0.6s ease-out, containerGlow 3s ease-in-out infinite alternate;
+        }
+        @keyframes containerGlow {
+            0% { box-shadow: 0 30px 80px rgba(0,0,0,0.3), 0 0 60px rgba(102, 126, 234, 0.2); }
+            100% { box-shadow: 0 30px 80px rgba(0,0,0,0.3), 0 0 100px rgba(240, 147, 251, 0.4); }
         }
         @keyframes slideUp {
             from { opacity: 0; transform: translateY(30px); }
@@ -72,14 +84,35 @@
             width: 80px;
             height: 80px;
             margin: 0 auto 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 200% 200%;
             border-radius: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 40px;
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-            animation: bounce 2s infinite;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4), 0 0 40px rgba(240, 147, 251, 0.3);
+            animation: bounce 2s infinite, logoGradient 4s ease infinite;
+            position: relative;
+            overflow: hidden;
+        }
+        .logo-icon::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 3s infinite;
+        }
+        @keyframes logoGradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        @keyframes shimmer {
+            0% { transform: rotate(0deg) translateX(-100%); }
+            100% { transform: rotate(0deg) translateX(100%); }
         }
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
@@ -90,10 +123,18 @@
             margin-bottom: 8px;
             font-size: 2.8em;
             font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 200% 200%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            animation: titleGradient 5s ease infinite;
+            text-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+            letter-spacing: -1px;
+        }
+        @keyframes titleGradient {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
         .subtitle {
             color: #718096;
@@ -113,10 +154,28 @@
             padding: 15px;
             border-radius: 15px;
             transition: all 0.3s ease;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            transition: left 0.5s;
+        }
+        .feature-card:hover::before {
+            left: 100%;
         }
         .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.2);
+            background: linear-gradient(135deg, #ffffff 0%, #f6f8fb 100%);
+            border-color: rgba(102, 126, 234, 0.3);
         }
         .feature-icon {
             font-size: 28px;
@@ -196,7 +255,8 @@
             height: 160px;
             border-radius: 50%;
             border: none;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 200% 200%;
             color: white;
             font-size: 70px;
             cursor: pointer;
@@ -205,9 +265,14 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5), 0 0 60px rgba(240, 147, 251, 0.3);
             position: relative;
             overflow: hidden;
+            animation: micGlow 3s ease-in-out infinite alternate;
+        }
+        @keyframes micGlow {
+            0% { box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5), 0 0 40px rgba(240, 147, 251, 0.3); }
+            100% { box-shadow: 0 15px 50px rgba(102, 126, 234, 0.7), 0 0 80px rgba(240, 147, 251, 0.5); }
         }
         .microphone-btn::before {
             content: '';
@@ -217,13 +282,24 @@
             width: 0;
             height: 0;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.4), transparent 70%);
             transform: translate(-50%, -50%);
             transition: width 0.6s, height 0.6s;
         }
         .microphone-btn:hover::before {
-            width: 160px;
-            height: 160px;
+            width: 180px;
+            height: 180px;
+        }
+        .microphone-btn::after {
+            content: '✨';
+            position: absolute;
+            font-size: 20px;
+            opacity: 0;
+            animation: sparkle 2s infinite;
+        }
+        @keyframes sparkle {
+            0%, 100% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+            50% { opacity: 1; transform: translate(30px, -30px) scale(1); }
         }
         .microphone-btn:hover {
             transform: scale(1.1) rotate(5deg);
@@ -351,6 +427,24 @@
         @keyframes slideDown {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        #statusBanner {
+            position: relative;
+            overflow: hidden;
+        }
+        #statusBanner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: bannerShine 3s infinite;
+        }
+        @keyframes bannerShine {
+            0% { left: -100%; }
+            100% { left: 100%; }
         }
         .info-banner {
             background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
