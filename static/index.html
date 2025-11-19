@@ -128,6 +128,65 @@
             font-weight: 500;
         }
         
+        .voice-selector {
+            margin: 25px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 15px;
+            border: 2px solid #e2e8f0;
+        }
+        .voice-selector-title {
+            font-size: 0.9em;
+            color: #4a5568;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .voice-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .voice-option {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 15px 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        .voice-option:hover {
+            transform: translateY(-2px);
+            border-color: #cbd5e0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .voice-option.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #667eea;
+            color: white;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+        .voice-option-icon {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+        .voice-option-name {
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        .voice-option-desc {
+            font-size: 0.7em;
+            opacity: 0.8;
+        }
+        .voice-option.active .voice-option-desc {
+            opacity: 1;
+        }
+        
         .microphone-section {
             margin: 35px 0;
         }
@@ -367,6 +426,29 @@
         
         <div id="statusBanner"></div>
         
+        <div class="voice-selector">
+            <div class="voice-selector-title">
+                🎭 Choose Voice Assistant
+            </div>
+            <div class="voice-options">
+                <div class="voice-option active" data-voice="female-1" data-rate="1.0" data-pitch="1.1">
+                    <div class="voice-option-icon">👩‍⚕️</div>
+                    <div class="voice-option-name">Sarah</div>
+                    <div class="voice-option-desc">Friendly Female</div>
+                </div>
+                <div class="voice-option" data-voice="male-1" data-rate="0.95" data-pitch="0.9">
+                    <div class="voice-option-icon">👨‍⚕️</div>
+                    <div class="voice-option-name">Dr. James</div>
+                    <div class="voice-option-desc">Professional Male</div>
+                </div>
+                <div class="voice-option" data-voice="female-2" data-rate="1.1" data-pitch="1.2">
+                    <div class="voice-option-icon">👩‍💼</div>
+                    <div class="voice-option-name">Emma</div>
+                    <div class="voice-option-desc">Energetic Female</div>
+                </div>
+            </div>
+        </div>
+        
         <div class="microphone-section">
             <button class="microphone-btn" id="recordBtn" title="Click to start voice conversation">🎤</button>
             <p class="mic-label">Click microphone to speak</p>
@@ -400,6 +482,17 @@
         const responseText = document.getElementById('responseText');
         const statusBanner = document.getElementById('statusBanner');
         
+        // Voice profile settings
+        let currentVoiceProfile = {
+            name: 'Sarah',
+            rate: 1.0,
+            pitch: 1.1,
+            voiceType: 'female'
+        };
+        
+        // Available voices will be populated after page loads
+        let availableVoices = [];
+        
         // Create animated particles
         function createParticles() {
             const particlesContainer = document.getElementById('particles');
@@ -427,6 +520,39 @@
             recognition.lang = 'en-US';
         }
 
+        // Load available voices
+        function loadVoices() {
+            availableVoices = speechSynthesis.getVoices();
+        }
+        
+        // Load voices on page load and when voices change
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+        loadVoices();
+        
+        // Voice profile selector
+        document.querySelectorAll('.voice-option').forEach(option => {
+            option.addEventListener('click', function() {
+                // Remove active class from all options
+                document.querySelectorAll('.voice-option').forEach(opt => opt.classList.remove('active'));
+                // Add active class to clicked option
+                this.classList.add('active');
+                
+                // Update voice profile
+                const voiceType = this.dataset.voice;
+                const rate = parseFloat(this.dataset.rate);
+                const pitch = parseFloat(this.dataset.pitch);
+                const name = this.querySelector('.voice-option-name').textContent;
+                
+                currentVoiceProfile = { name, rate, pitch, voiceType };
+                
+                // Give audio feedback
+                speakText(`Hi, I'm ${name}. I'm ready to help you find hospitals.`);
+                showStatus(`✅ Voice profile changed to ${name}`, 'success');
+            });
+        });
+        
         // Check microphone support on page load
         window.addEventListener('load', () => {
             checkMicrophoneSupport();
@@ -481,9 +607,41 @@
 
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'en-US';
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
+            utterance.rate = currentVoiceProfile.rate;
+            utterance.pitch = currentVoiceProfile.pitch;
             utterance.volume = 1.0;
+            
+            // Try to select appropriate voice based on profile
+            if (availableVoices.length > 0) {
+                let selectedVoice = null;
+                
+                // Try to find a matching voice
+                if (currentVoiceProfile.voiceType.includes('female')) {
+                    selectedVoice = availableVoices.find(voice => 
+                        voice.name.toLowerCase().includes('female') || 
+                        voice.name.toLowerCase().includes('samantha') ||
+                        voice.name.toLowerCase().includes('victoria') ||
+                        voice.name.toLowerCase().includes('karen') ||
+                        (voice.name.toLowerCase().includes('zira') && voice.lang.startsWith('en'))
+                    );
+                } else if (currentVoiceProfile.voiceType.includes('male')) {
+                    selectedVoice = availableVoices.find(voice => 
+                        voice.name.toLowerCase().includes('male') || 
+                        voice.name.toLowerCase().includes('david') ||
+                        voice.name.toLowerCase().includes('mark') ||
+                        voice.name.toLowerCase().includes('daniel')
+                    );
+                }
+                
+                // Fallback to default English voice
+                if (!selectedVoice) {
+                    selectedVoice = availableVoices.find(voice => voice.lang.startsWith('en'));
+                }
+                
+                if (selectedVoice) {
+                    utterance.voice = selectedVoice;
+                }
+            }
             
             utterance.onstart = () => {
                 showStatus('🔊 Speaking...', 'info');
