@@ -460,7 +460,8 @@
         
         <div class="input-group">
             <input id="textQuery" type="text" placeholder="e.g., Tell me 3 hospitals around Bangalore" />
-            <button id="sendText">Send</button>
+            <button id="sendText">Send 🚀</button>
+            <button id="endConversation" style="background: linear-gradient(135deg, #f56565 0%, #c53030 100%); margin-left: 10px;">End Conversation 🔄</button>
         </div>
         
         <div id="output">
@@ -763,12 +764,24 @@
             }
         });
 
+        // Session management
+        let currentSessionId = null;
+
+        function resetSession() {
+            currentSessionId = null;
+            responseText.innerHTML = '<p style="color: #718096; font-style: italic;">Session ended. Start a new conversation!</p>';
+            showStatus('🔄 Session reset. Ready for new conversation.', 'info');
+        }
+
         async function processVoiceQuery(query) {
             try {
                 const resp = await fetch('http://localhost:8000/converse', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: query })
+                    body: JSON.stringify({ 
+                        text: query,
+                        session_id: currentSessionId 
+                    })
                 });
                 
                 if (!resp.ok) {
@@ -776,6 +789,12 @@
                 }
                 
                 const data = await resp.json();
+                
+                // Update session ID
+                if (data.session_id) {
+                    currentSessionId = data.session_id;
+                }
+                
                 const aiResponse = data.speech || JSON.stringify(data);
                 
                 // Display text response with clear formatting
@@ -814,7 +833,10 @@
                 const resp = await fetch('http://localhost:8000/converse', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: q })
+                    body: JSON.stringify({ 
+                        text: q,
+                        session_id: currentSessionId 
+                    })
                 });
                 
                 if (!resp.ok) {
@@ -822,6 +844,12 @@
                 }
                 
                 const data = await resp.json();
+                
+                // Update session ID
+                if (data.session_id) {
+                    currentSessionId = data.session_id;
+                }
+                
                 const aiResponse = data.speech || JSON.stringify(data);
                 
                 // Display text response with clear formatting
@@ -846,6 +874,14 @@
             if (e.key === 'Enter') {
                 sendTextQuery();
             }
+        });
+
+        // End conversation button handler
+        document.getElementById('endConversation').addEventListener('click', () => {
+            if (speechSynthesis.speaking) {
+                speechSynthesis.cancel();
+            }
+            resetSession();
         });
     </script>
 </body>

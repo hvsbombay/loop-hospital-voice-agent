@@ -172,6 +172,8 @@ def handle_general_conversation(query: str, intro: Optional[str] = None) -> Opti
     import re
     greetings = [r'\bhello\b', r'\bhi\b', r'\bhey\b', r'\bgood morning\b', r'\bgood afternoon\b', r'\bgood evening\b']
     if any(re.search(greeting, q) for greeting in greetings):
+        if intro:
+            return intro + " How can I help you today?"
         responses = [
             "Hello! I'm Loop AI, your hospital network assistant. How can I help you today?",
             "Hi there! I'm here to help you find hospitals in our network. What can I do for you?",
@@ -440,16 +442,15 @@ async def converse(req: ConverseRequest):
         city_matches = get_hospitals_by_city_df(city_norm)
         total_count = len(city_matches)
         if total_count == 0:
-            speech = (intro + ' ' if intro else '') + f"I could not find hospitals in {city_norm}. Do you want to try another city?"
+            speech = f"I could not find hospitals in {city_norm}. Do you want to try another city?"
             session_ctx.turns.append({"user": text, "bot": speech})
             return {"session_id": session_id, "speech": speech, "hospitals": []}
 
         if wants_all_hospitals(text) and total_count > 5:
             sampled = city_matches.head(5).to_dict('records')
-            speech_lines = []
-            if intro:
-                speech_lines.append(intro)
-            speech_lines.append(f"There are {total_count} hospitals in {city_norm}, which is too many to list at once.")
+            speech_lines = [
+                f"There are {total_count} hospitals in {city_norm}, which is too many to list at once."
+            ]
             speech_lines.append(f"Here are the first {len(sampled)} to get you started:")
             for idx, h in enumerate(sampled, 1):
                 name = h.get('HOSPITAL NAME', 'Unknown')
@@ -474,10 +475,9 @@ async def converse(req: ConverseRequest):
         # Use quantity if specified, otherwise default to 3
         num_results = quantity if quantity and quantity <= 10 else 3
         hospitals = city_matches.head(num_results).to_dict('records')
-        speech_lines = []
-        if intro:
-            speech_lines.append(intro)
-        speech_lines.append(f"I found {len(hospitals)} hospitals in {city_norm}:")
+        speech_lines = [
+            f"I found {len(hospitals)} hospitals in {city_norm}:"
+        ]
         for idx, h in enumerate(hospitals, 1):
             name = h.get('HOSPITAL NAME', h.get('HOSPITAL_NAME', 'Unknown'))
             address = h.get('Address', 'Address not available')
@@ -502,10 +502,9 @@ async def converse(req: ConverseRequest):
             if 'sarjapur' in text.lower():
                 filtered = [h for h in hospitals if 'sarjapur' in h.get('Address', '').lower()]
                 if filtered:
-                    speech_parts = []
-                    if intro:
-                        speech_parts.append(intro)
-                    speech_parts.append(f"Yes, {hospital_name} in {city} is in our network.")
+                    speech_parts = [
+                        f"Yes, {hospital_name} in {city} is in our network."
+                    ]
                     speech_parts.append(f"I found {len(filtered)} location(s) near Sarjapur:")
                     for idx, h in enumerate(filtered, 1):
                         name = h.get('HOSPITAL NAME', 'Unknown')
@@ -520,10 +519,9 @@ async def converse(req: ConverseRequest):
                     return {"session_id": session_id, "speech": speech, "hospitals": filtered}
             
             # General hospital confirmation with details
-            speech_parts = []
-            if intro:
-                speech_parts.append(intro)
-            speech_parts.append(f"Yes, {hospital_name} in {city} is in our network.")
+            speech_parts = [
+                f"Yes, {hospital_name} in {city} is in our network."
+            ]
             speech_parts.append(f"I found {len(hospitals)} location(s):")
             for idx, h in enumerate(hospitals[:3], 1):  # Limit to 3 for brevity
                 name = h.get('HOSPITAL NAME', 'Unknown')
@@ -541,8 +539,6 @@ async def converse(req: ConverseRequest):
             return {"session_id": session_id, "speech": speech, "hospitals": res['hospitals']}
         else:
             speech = f"I'm sorry, I could not find {hospital_name} in {city} in our network. "
-            if intro:
-                speech = intro + ' ' + speech
             
             # Provide helpful suggestions
             city_hospitals = get_hospitals_by_city_df(city)
@@ -563,8 +559,6 @@ async def converse(req: ConverseRequest):
             cities = list(set([h.get('CITY', 'Unknown') for h in hospitals]))
             
             speech_parts = []
-            if intro:
-                speech_parts.append(intro)
             
             if len(hospitals) == 1:
                 h = hospitals[0]
@@ -592,10 +586,9 @@ async def converse(req: ConverseRequest):
             session_ctx.turns.append({"user": text, "bot": speech})
             return {"session_id": session_id, "speech": speech, "hospitals": hospitals}
         else:
-            speech_parts = []
-            if intro:
-                speech_parts.append(intro)
-            speech_parts.append(f"I'm sorry, I could not find '{hospital_name}' in our network database.")
+            speech_parts = [
+                f"I'm sorry, I could not find '{hospital_name}' in our network database."
+            ]
             speech_parts.append("Could you check the spelling or try a different hospital name?")
             speech = ' '.join(speech_parts)
             session_ctx.update_context(hospital_name=hospital_name)
@@ -606,13 +599,13 @@ async def converse(req: ConverseRequest):
     res = await search_hospitals(query=text, city=city if city else None)
     if res.get('status') == 'success' and res.get('count', 0) > 0:
         names = [h.get('HOSPITAL NAME', '') for h in res['hospitals']]
-        speech = (intro + ' ' if intro else '') + f"I found the following hospitals: {', '.join(names)}. Would you like more details about any of these?"
+        speech = f"I found the following hospitals: {', '.join(names)}. Would you like more details about any of these?"
         session_ctx.update_context(results=res['hospitals'], topic='search')
         session_ctx.turns.append({"user": text, "bot": speech})
         return {"session_id": session_id, "speech": speech, "hospitals": res['hospitals']}
 
     # Provide contextual help
-    speech = (intro + ' ' if intro else '') + "I couldn't find relevant hospitals. "
+    speech = "I couldn't find relevant hospitals. "
     if session_ctx.last_city:
         speech += f"Would you like to search in {session_ctx.last_city} again, or try a different city?"
     else:
