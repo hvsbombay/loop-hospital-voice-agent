@@ -140,10 +140,21 @@
         let isRecording = false;
         let mediaRecorder;
         let audioChunks = [];
+        let recognition;
+        let speechSynthesis = window.speechSynthesis;
         const recordBtn = document.getElementById('recordBtn');
         const output = document.getElementById('output');
         const responseText = document.getElementById('responseText');
         const statusBanner = document.getElementById('statusBanner');
+
+        // Initialize Speech Recognition
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+        }
 
         // Check microphone support on page load
         window.addEventListener('load', () => {
@@ -152,6 +163,8 @@
 
         async function checkMicrophoneSupport() {
             const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            const hasSpeechRecognition = !!recognition;
+            const hasSpeechSynthesis = !!speechSynthesis;
             const isSecureContext = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
             
             if (!hasGetUserMedia) {
@@ -160,13 +173,20 @@
             } else if (!isSecureContext) {
                 showStatus('⚠️ Microphone requires HTTPS. Using text-based queries instead.', 'error');
                 recordBtn.disabled = true;
+            } else if (!hasSpeechRecognition) {
+                showStatus('⚠️ Speech recognition not supported. Using text-based queries instead.', 'error');
+                recordBtn.disabled = true;
             } else {
-                showStatus('✅ Click the microphone button to grant access and start recording', 'success');
+                const features = [];
+                if (hasSpeechRecognition) features.push('🎤 Voice Input');
+                if (hasSpeechSynthesis) features.push('🔊 Voice Output');
+                showStatus(`✅ Ready! ${features.join(' & ')} enabled. Click microphone to start.`, 'success');
+                
                 // Try to check permissions status
                 try {
                     const permission = await navigator.permissions.query({ name: 'microphone' });
                     if (permission.state === 'granted') {
-                        showStatus('✅ Microphone access granted! Click to record or use text queries', 'success');
+                        showStatus(`✅ Voice chat ready! ${features.join(' & ')} available.`, 'success');
                     } else if (permission.state === 'denied') {
                         showStatus('❌ Microphone access denied. Please enable it in browser settings or use text queries', 'error');
                     }
@@ -177,6 +197,39 @@
             }
         }
 
+        function speakText(text) {
+            // Stop any ongoing speech
+            if (speechSynthesis.speaking) {
+                speechSynthesis.cancel();
+            }
+            
+            if (!speechSynthesis) {
+                console.error('Speech synthesis not supported');
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            utterance.onstart = () => {
+                showStatus('🔊 Speaking...', 'info');
+            };
+            
+            utterance.onend = () => {
+                showStatus('✅ Voice response complete. Click microphone to ask another question.', 'success');
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('Speech synthesis error:', event);
+                showStatus('⚠️ Voice output error. Response shown as text.', 'error');
+            };
+            
+            speechSynthesis.speak(utterance);
+        }
+
         function showStatus(message, type) {
             statusBanner.textContent = message;
             statusBanner.className = type === 'error' ? 'error-banner' : type === 'success' ? 'success-banner' : 'info-banner';
@@ -185,73 +238,143 @@
 
         recordBtn.addEventListener('click', async () => {
             if (!isRecording) {
-                // Start recording
-                showStatus('🎤 Requesting microphone access...', 'info');
+                // Start voice recognition
+                if (!recognition) {
+                    showStatus('❌ Speech recognition not available in your browser', 'error');
+                    return;
+                }
+
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
-                    
-                    mediaRecorder.ondataavailable = (event) => {
-                        audioChunks.push(event.data);
-                    };
-                    
-                    mediaRecorder.onstop = async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                        stream.getTracks().forEach(track => track.stop()); // Stop microphone
-                        
-                        // For Part 1 demo we don't have an STT service configured.
-                        // Show message that audio was captured but STT not implemented
-                        const sizeMB = (audioBlob.size / 1024 / 1024).toFixed(2);
-                        responseText.innerHTML = `🎙️ <strong>Audio recorded successfully!</strong><br><br>
-                            Size: ${sizeMB} MB<br><br>
-                            <em>Note: Speech-to-text is not implemented in this demo. 
-                            Please type your query in the text box above to interact with Loop AI.</em>`;
-                        output.classList.add('active');
-                        showStatus('✅ Audio captured. Use text box for queries', 'success');
-                    };
-                    
-                    mediaRecorder.start();
+                    // Stop any ongoing speech
+                    if (speechSynthesis.speaking) {
+                        speechSynthesis.cancel();
+                    }
+
                     isRecording = true;
                     recordBtn.classList.add('recording');
-                    showStatus('🔴 Recording... Click again to stop', 'success');
-                    responseText.textContent = 'Listening... Speak now!';
+                    showStatus('🎤 Listening... Speak your question now', 'success');
+                    responseText.textContent = '🎙️ Listening... Please speak clearly.';
                     output.classList.add('active');
+                    
+                    let finalTranscript = '';
+                    let interimTranscript = '';
+                    
+                    recognition.onresult = (event) => {
+                        interimTranscript = '';
+                        
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                finalTranscript += transcript + ' ';
+                            } else {
+                                interimTranscript += transcript;
+                            }
+                        }
+                        
+                        // Show interim results
+                        responseText.textContent = `🎙️ Hearing: "${interimTranscript || finalTranscript}"`;
+                    };
+                    
+                    recognition.onend = async () => {
+                        isRecording = false;
+                        recordBtn.classList.remove('recording');
+                        
+                        if (finalTranscript.trim()) {
+                            showStatus('⏳ Processing your question...', 'info');
+                            responseText.textContent = `📝 You said: "${finalTranscript.trim()}"\n\n🤔 Thinking...`;
+                            
+                            // Send to backend
+                            await processVoiceQuery(finalTranscript.trim());
+                        } else {
+                            showStatus('⚠️ No speech detected. Try again.', 'error');
+                            responseText.textContent = '⚠️ No speech detected. Please try again or use the text box.';
+                        }
+                    };
+                    
+                    recognition.onerror = (event) => {
+                        console.error('Speech recognition error:', event.error);
+                        isRecording = false;
+                        recordBtn.classList.remove('recording');
+                        
+                        let errorMsg = '';
+                        if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                            errorMsg = '❌ Microphone permission denied. Please allow access and try again.';
+                            showStatus('❌ Microphone access denied', 'error');
+                        } else if (event.error === 'no-speech') {
+                            errorMsg = '⚠️ No speech detected. Please try again.';
+                            showStatus('⚠️ No speech detected', 'error');
+                        } else if (event.error === 'network') {
+                            errorMsg = '❌ Network error. Check your internet connection.';
+                            showStatus('❌ Network error', 'error');
+                        } else {
+                            errorMsg = `❌ Speech recognition error: ${event.error}`;
+                            showStatus(`❌ Error: ${event.error}`, 'error');
+                        }
+                        responseText.textContent = errorMsg;
+                        output.classList.add('active');
+                    };
+                    
+                    recognition.start();
                 } catch (err) {
-                    console.error('Microphone error:', err);
-                    let errorMsg = '';
-                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                        errorMsg = '❌ Microphone access denied. Please:\n1. Click the 🔒 icon in the address bar\n2. Allow microphone access\n3. Refresh the page\n\nOr use text queries below.';
-                        showStatus('❌ Please allow microphone access in browser settings', 'error');
-                    } else if (err.name === 'NotFoundError') {
-                        errorMsg = '❌ No microphone found. Please connect a microphone or use text queries.';
-                        showStatus('❌ No microphone device found', 'error');
-                    } else if (err.name === 'NotReadableError') {
-                        errorMsg = '❌ Microphone is being used by another application. Close other apps and try again.';
-                        showStatus('❌ Microphone in use by another app', 'error');
-                    } else {
-                        errorMsg = '❌ Microphone error: ' + err.message + '\n\nPlease use text queries below.';
-                        showStatus('❌ Microphone error: ' + err.message, 'error');
-                    }
-                    responseText.textContent = errorMsg;
+                    console.error('Recognition error:', err);
+                    isRecording = false;
+                    recordBtn.classList.remove('recording');
+                    showStatus('❌ Failed to start voice recognition', 'error');
+                    responseText.textContent = '❌ Voice recognition error. Please use the text box below.';
                     output.classList.add('active');
                 }
             } else {
                 // Stop recording
-                if (mediaRecorder && mediaRecorder.state === 'recording') {
-                    mediaRecorder.stop();
+                if (recognition) {
+                    recognition.stop();
                 }
                 isRecording = false;
                 recordBtn.classList.remove('recording');
-                showStatus('⏹️ Processing audio...', 'info');
+                showStatus('⏹️ Processing...', 'info');
             }
         });
+
+        async function processVoiceQuery(query) {
+            try {
+                const resp = await fetch('http://localhost:8000/converse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: query })
+                });
+                
+                if (!resp.ok) {
+                    throw new Error('Backend error: ' + resp.status);
+                }
+                
+                const data = await resp.json();
+                const aiResponse = data.speech || JSON.stringify(data);
+                
+                // Display text response
+                responseText.textContent = `📝 You: "${query}"\n\n🤖 Loop AI: ${aiResponse}`;
+                showStatus('🔊 Speaking response...', 'success');
+                
+                // Speak the response
+                speakText(aiResponse);
+                
+            } catch (e) {
+                console.error('Error:', e);
+                const errorMsg = '❌ Error: ' + e.message + '\n\nMake sure the backend server is running on http://localhost:8000';
+                responseText.textContent = errorMsg;
+                showStatus('❌ Failed to connect to backend', 'error');
+                speakText('Sorry, I encountered an error connecting to the server. Please try again.');
+            }
+        }
 
         async function sendTextQuery() {
             const q = document.getElementById('textQuery').value.trim();
             if (!q) {
                 showStatus('⚠️ Please enter a query', 'error');
                 return;
+            }
+            
+            // Stop any ongoing speech
+            if (speechSynthesis.speaking) {
+                speechSynthesis.cancel();
             }
             
             responseText.textContent = '🤔 Thinking...';
@@ -270,9 +393,16 @@
                 }
                 
                 const data = await resp.json();
-                responseText.textContent = data.speech || JSON.stringify(data);
-                showStatus('✅ Query processed successfully', 'success');
+                const aiResponse = data.speech || JSON.stringify(data);
+                
+                // Display text response
+                responseText.textContent = `📝 You: "${q}"\n\n🤖 Loop AI: ${aiResponse}`;
+                showStatus('🔊 Speaking response...', 'success');
                 document.getElementById('textQuery').value = ''; // Clear input
+                
+                // Speak the response
+                speakText(aiResponse);
+                
             } catch (e) {
                 console.error('Error:', e);
                 responseText.textContent = '❌ Error: ' + e.message + '\n\nMake sure the backend server is running on http://localhost:8000';
