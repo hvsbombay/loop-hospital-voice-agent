@@ -134,6 +134,7 @@
             background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
             border-radius: 15px;
             border: 2px solid #e2e8f0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
         }
         .voice-selector-title {
             font-size: 0.9em;
@@ -284,12 +285,17 @@
             font-family: 'Poppins', sans-serif;
             transition: all 0.3s ease;
             background: #f7fafc;
+            color: #2d3748;
+        }
+        #textQuery::placeholder {
+            color: #a0aec0;
         }
         #textQuery:focus {
             outline: none;
             border-color: #667eea;
             background: white;
             box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2);
+            transform: translateY(-1px);
         }
         #sendText {
             padding: 16px 30px;
@@ -309,6 +315,27 @@
             box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         }
         #sendText:active {
+            transform: translateY(0);
+        }
+        #endConversation {
+            padding: 16px 30px;
+            border-radius: 15px;
+            border: none;
+            background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95em;
+            font-family: 'Poppins', sans-serif;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(245, 101, 101, 0.3);
+        }
+        #endConversation:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(245, 101, 101, 0.4);
+            background: linear-gradient(135deg, #fc8181 0%, #e53e3e 100%);
+        }
+        #endConversation:active {
             transform: translateY(0);
         }
         
@@ -344,13 +371,14 @@
         #output {
             margin-top: 30px;
             padding: 25px;
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            background: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%);
             border-radius: 20px;
             text-align: left;
             min-height: 120px;
             color: #2d3748;
             display: none;
             border: 2px solid #e2e8f0;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
             animation: fadeIn 0.4s ease-out;
         }
         @keyframes fadeIn {
@@ -366,11 +394,19 @@
         }
         #responseText {
             margin-top: 12px;
-            line-height: 1.7;
+            line-height: 1.8;
             font-size: 0.95em;
+            color: #2d3748;
         }
         #responseText strong {
-            color: #4a5568;
+            color: #667eea;
+            font-weight: 600;
+        }
+        #responseText div {
+            margin-bottom: 15px;
+        }
+        #responseText div:last-child {
+            margin-bottom: 0;
         }
         
         .powered-by {
@@ -391,10 +427,19 @@
                 grid-template-columns: 1fr;
                 gap: 10px;
             }
+            .voice-options {
+                grid-template-columns: 1fr;
+            }
             .microphone-btn {
                 width: 130px;
                 height: 130px;
                 font-size: 55px;
+            }
+            .input-group {
+                flex-direction: column;
+            }
+            #textQuery, #sendText, #endConversation {
+                width: 100%;
             }
         }
     </style>
@@ -424,7 +469,7 @@
             </div>
         </div>
         
-        <div id="statusBanner"></div>
+        <div id="statusBanner" role="alert"></div>
         
         <div class="voice-selector">
             <div class="voice-selector-title">
@@ -450,7 +495,7 @@
         </div>
         
         <div class="microphone-section">
-            <button class="microphone-btn" id="recordBtn" title="Click to start voice conversation">🎤</button>
+            <button class="microphone-btn" id="recordBtn" title="Click to start voice conversation" aria-label="Start voice recording">🎤</button>
             <p class="mic-label">Click microphone to speak</p>
         </div>
         
@@ -459,9 +504,9 @@
         </div>
         
         <div class="input-group">
-            <input id="textQuery" type="text" placeholder="e.g., Tell me 3 hospitals around Bangalore" />
-            <button id="sendText">Send 🚀</button>
-            <button id="endConversation" style="background: linear-gradient(135deg, #f56565 0%, #c53030 100%); margin-left: 10px;">End Conversation 🔄</button>
+            <input id="textQuery" type="text" placeholder="e.g., Tell me 3 hospitals in Mumbai" aria-label="Type your hospital query" />
+            <button id="sendText" aria-label="Send query">Send 🚀</button>
+            <button id="endConversation" aria-label="End current conversation">End Conversation 🔄</button>
         </div>
         
         <div id="output">
