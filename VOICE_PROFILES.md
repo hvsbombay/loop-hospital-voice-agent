@@ -13,7 +13,7 @@ Loop AI now includes **3 distinct voice assistant profiles** to personalize your
 - **Best For**: General queries, comfortable conversation
 - **Personality**: Friendly healthcare assistant with a warm tone
 
-### 👨‍⚕️ **Dr. James** - Professional Male
+### 👨‍⚕️ **James** - Professional Male
 - **Voice Type**: Male
 - **Characteristics**:
   - Speaking Rate: Slightly Slower (0.95x)
