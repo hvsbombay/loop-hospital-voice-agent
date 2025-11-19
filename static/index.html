@@ -88,20 +88,50 @@
         #output.active {
             display: block;
         }
+        .info-banner {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            color: #1565c0;
+            font-size: 0.95em;
+        }
+        .error-banner {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            color: #c62828;
+            font-size: 0.95em;
+        }
+        .success-banner {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            color: #2e7d32;
+            font-size: 0.95em;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🏥 Loop AI</h1>
         <p class="subtitle">Hospital Network Assistant</p>
-        <button class="microphone-btn" id="recordBtn">🎤</button>
-        <p class="label">Start Conversation</p>
+        
+        <div id="statusBanner" class="info-banner" style="display:none;"></div>
+        
+        <button class="microphone-btn" id="recordBtn" title="Note: Microphone requires HTTPS or localhost">🎤</button>
+        <p class="label">Start Conversation (or use text below)</p>
         <div style="margin-top:20px; display:flex; gap:8px; justify-content:center;">
             <input id="textQuery" type="text" placeholder="Type your question (e.g. Tell me 3 hospitals around Bangalore)" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ddd;" />
-            <button id="sendText" style="padding:10px 16px; border-radius:8px; border:none; background:#667eea; color:white; cursor:pointer;">Send</button>
+            <button id="sendText" style="padding:10px 16px; border-radius:8px; border:none; background:#667eea; color:white; cursor:pointer; font-weight:bold;">Send</button>
         </div>
         <div id="output">
-            <strong>Response:</strong>
+            <strong>🤖 Loop AI Response:</strong>
             <p id="responseText"></p>
         </div>
     </div>
@@ -113,10 +143,50 @@
         const recordBtn = document.getElementById('recordBtn');
         const output = document.getElementById('output');
         const responseText = document.getElementById('responseText');
+        const statusBanner = document.getElementById('statusBanner');
+
+        // Check microphone support on page load
+        window.addEventListener('load', () => {
+            checkMicrophoneSupport();
+        });
+
+        async function checkMicrophoneSupport() {
+            const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            const isSecureContext = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            
+            if (!hasGetUserMedia) {
+                showStatus('❌ Microphone API not supported in your browser', 'error');
+                recordBtn.disabled = true;
+            } else if (!isSecureContext) {
+                showStatus('⚠️ Microphone requires HTTPS. Using text-based queries instead.', 'error');
+                recordBtn.disabled = true;
+            } else {
+                showStatus('✅ Click the microphone button to grant access and start recording', 'success');
+                // Try to check permissions status
+                try {
+                    const permission = await navigator.permissions.query({ name: 'microphone' });
+                    if (permission.state === 'granted') {
+                        showStatus('✅ Microphone access granted! Click to record or use text queries', 'success');
+                    } else if (permission.state === 'denied') {
+                        showStatus('❌ Microphone access denied. Please enable it in browser settings or use text queries', 'error');
+                    }
+                } catch (e) {
+                    // Permissions API not fully supported, that's okay
+                    console.log('Permissions API check failed:', e);
+                }
+            }
+        }
+
+        function showStatus(message, type) {
+            statusBanner.textContent = message;
+            statusBanner.className = type === 'error' ? 'error-banner' : type === 'success' ? 'success-banner' : 'info-banner';
+            statusBanner.style.display = 'block';
+        }
 
         recordBtn.addEventListener('click', async () => {
             if (!isRecording) {
                 // Start recording
+                showStatus('🎤 Requesting microphone access...', 'info');
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
@@ -128,59 +198,96 @@
                     
                     mediaRecorder.onstop = async () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                        // Send to backend
-                                    // For Part 1 demo we don't have an STT service configured.
-                                    // Prompt user to paste/type their query or use the text box below.
-                                    responseText.textContent = 'Audio recorded. Please type your query in the box below and press Send.';
-                                    output.classList.add('active');
+                        stream.getTracks().forEach(track => track.stop()); // Stop microphone
+                        
+                        // For Part 1 demo we don't have an STT service configured.
+                        // Show message that audio was captured but STT not implemented
+                        const sizeMB = (audioBlob.size / 1024 / 1024).toFixed(2);
+                        responseText.innerHTML = `🎙️ <strong>Audio recorded successfully!</strong><br><br>
+                            Size: ${sizeMB} MB<br><br>
+                            <em>Note: Speech-to-text is not implemented in this demo. 
+                            Please type your query in the text box above to interact with Loop AI.</em>`;
+                        output.classList.add('active');
+                        showStatus('✅ Audio captured. Use text box for queries', 'success');
                     };
                     
                     mediaRecorder.start();
                     isRecording = true;
                     recordBtn.classList.add('recording');
+                    showStatus('🔴 Recording... Click again to stop', 'success');
+                    responseText.textContent = 'Listening... Speak now!';
+                    output.classList.add('active');
                 } catch (err) {
-                    responseText.textContent = 'Microphone access denied';
+                    console.error('Microphone error:', err);
+                    let errorMsg = '';
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        errorMsg = '❌ Microphone access denied. Please:\n1. Click the 🔒 icon in the address bar\n2. Allow microphone access\n3. Refresh the page\n\nOr use text queries below.';
+                        showStatus('❌ Please allow microphone access in browser settings', 'error');
+                    } else if (err.name === 'NotFoundError') {
+                        errorMsg = '❌ No microphone found. Please connect a microphone or use text queries.';
+                        showStatus('❌ No microphone device found', 'error');
+                    } else if (err.name === 'NotReadableError') {
+                        errorMsg = '❌ Microphone is being used by another application. Close other apps and try again.';
+                        showStatus('❌ Microphone in use by another app', 'error');
+                    } else {
+                        errorMsg = '❌ Microphone error: ' + err.message + '\n\nPlease use text queries below.';
+                        showStatus('❌ Microphone error: ' + err.message, 'error');
+                    }
+                    responseText.textContent = errorMsg;
                     output.classList.add('active');
                 }
             } else {
                 // Stop recording
-                mediaRecorder.stop();
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
                 isRecording = false;
                 recordBtn.classList.remove('recording');
+                showStatus('⏹️ Processing audio...', 'info');
             }
         });
 
-        async function sendAudioToBackend(audioBlob) {
-            try {
-                responseText.textContent = 'Processing...';
-                output.classList.add('active');
-                
-                // Mock response for Part 1 demo
-                responseText.textContent = 'Audio received. Hospital search functionality ready!';
-            } catch (err) {
-                responseText.textContent = 'Error: ' + err.message;
-            }
-        }
-
         async function sendTextQuery() {
-            const q = document.getElementById('textQuery').value;
-            if (!q) return;
-            responseText.textContent = 'Thinking...';
+            const q = document.getElementById('textQuery').value.trim();
+            if (!q) {
+                showStatus('⚠️ Please enter a query', 'error');
+                return;
+            }
+            
+            responseText.textContent = '🤔 Thinking...';
             output.classList.add('active');
+            showStatus('⏳ Processing query...', 'info');
+            
             try {
                 const resp = await fetch('http://localhost:8000/converse', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: q })
                 });
+                
+                if (!resp.ok) {
+                    throw new Error('Backend error: ' + resp.status);
+                }
+                
                 const data = await resp.json();
                 responseText.textContent = data.speech || JSON.stringify(data);
+                showStatus('✅ Query processed successfully', 'success');
+                document.getElementById('textQuery').value = ''; // Clear input
             } catch (e) {
-                responseText.textContent = 'Error connecting to backend: ' + e.message;
+                console.error('Error:', e);
+                responseText.textContent = '❌ Error: ' + e.message + '\n\nMake sure the backend server is running on http://localhost:8000';
+                showStatus('❌ Failed to connect to backend', 'error');
             }
         }
 
         document.getElementById('sendText').addEventListener('click', sendTextQuery);
+        
+        // Allow Enter key to send query
+        document.getElementById('textQuery').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendTextQuery();
+            }
+        });
     </script>
 </body>
 </html>
