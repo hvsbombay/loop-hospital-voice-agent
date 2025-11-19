@@ -188,10 +188,31 @@ def is_in_scope(query: str, session_context=None) -> bool:
     return any(k in q for k in keywords)
 
 
+def extract_quantity(text: str) -> Optional[int]:
+    """Extract quantity/number from queries like 'give me 5 hospitals' or 'tell me three hospitals'"""
+    # Number words mapping
+    number_words = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10
+    }
+    
+    # Try to find numeric digits
+    m = re.search(r'\b(\d+)\s+hospital', text, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    
+    # Try to find number words
+    for word, num in number_words.items():
+        if re.search(r'\b' + word + r'\s+hospital', text, re.IGNORECASE):
+            return num
+    
+    return None
+
+
 def extract_city_from_text(text: str) -> Optional[str]:
     # match patterns like 'around Bangalore' or 'in Bangalore' or 'in Bengaluru'
-    # Exclude common non-city words like "database", "network", etc.
-    m = re.search(r"\b(?:around|in|near)\s+([A-Za-z]{3,20})\b", text, re.IGNORECASE)
+    # Also match 'from Bangalore' pattern
+    m = re.search(r"\b(?:around|in|near|from)\s+(?:the\s+)?([A-Za-z]{3,20})\b", text, re.IGNORECASE)
     if m:
         candidate = m.group(1)
         # Exclude non-city words
@@ -202,6 +223,17 @@ def extract_city_from_text(text: str) -> Optional[str]:
 
 
 def extract_hospital_name(text: str) -> Optional[str]:
+    # Don't extract hospital name if this is a quantity-based query
+    quantity_patterns = [
+        r'\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+hospital',
+        r'give me.*hospital',
+        r'tell me.*hospital.*(?:in|from|around)',
+        r'show me.*hospital'
+    ]
+    for pattern in quantity_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return None
+    
     # Handle "is there any <hospital name>" pattern - stop before "in database/network"
     m = re.search(r"(?:is there any|there any|any)\s+((?:[A-Z][a-z]+\s*)+(?:Hospital|Centre|Center|Clinic|Medical)[A-Za-z\s]*?)(?:\s+in\s+(?:database|network|my network)|\?|$)", text, re.IGNORECASE)
     if m:
@@ -326,11 +358,13 @@ async def converse(req: ConverseRequest):
         return {"session_id": session_id, "speech": speech, "out_of_scope": True}
 
     # Handle specific test queries heuristically
-    # 1) Tell me 3 hospitals around Bangalore
+    # Extract components from query
     city = extract_city_from_text(text)
     hospital_name = extract_hospital_name(text)
+    quantity = extract_quantity(text)
 
-    if 'tell me' in text.lower() and city:
+    # 1) Handle quantity-based city queries: "give me 5 hospitals from Bangalore"
+    if city and not hospital_name and (quantity or any(word in text_lower for word in ['give me', 'show me', 'tell me'])):
         city_norm = city
         city_matches = get_hospitals_by_city_df(city_norm)
         total_count = len(city_matches)
@@ -366,24 +400,25 @@ async def converse(req: ConverseRequest):
                 "needs_clarification": True
             }
 
-        # default to sharing top 3 results for readability
-        hospitals = city_matches.head(3).to_dict('records')
+        # Use quantity if specified, otherwise default to 3
+        num_results = quantity if quantity and quantity <= 10 else 3
+        hospitals = city_matches.head(num_results).to_dict('records')
         speech_lines = []
         if intro:
             speech_lines.append(intro)
-        speech_lines.append(f"I found {min(3, total_count)} hospitals in {city_norm}:")
+        speech_lines.append(f"I found {len(hospitals)} hospitals in {city_norm}:")
         for idx, h in enumerate(hospitals, 1):
             name = h.get('HOSPITAL NAME', h.get('HOSPITAL_NAME', 'Unknown'))
             address = h.get('Address', 'Address not available')
             speech_lines.append(f"{idx}. {name}, located at {address}")
-        if total_count > 3 and not wants_all_hospitals(text):
-            remaining = total_count - 3
+        if total_count > num_results:
+            remaining = total_count - num_results
             speech_lines.append(f"I have {remaining} more results. Say 'next' to see more or ask about a specific neighbourhood.")
         speech = ' '.join(speech_lines)
         
         # Update session context
         session_ctx.update_context(city=city_norm, results=hospitals, total_count=total_count, topic='search')
-        session_ctx.pagination_offset = 3
+        session_ctx.pagination_offset = num_results
         session_ctx.turns.append({"user": text, "bot": speech, "total_matches": total_count})
         return {"session_id": session_id, "speech": speech, "hospitals": hospitals, "total_matches": total_count}
 
