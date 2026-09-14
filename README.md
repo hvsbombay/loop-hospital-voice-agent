@@ -1,6 +1,6 @@
 #added the cricket project as well
 
-# Loop AI - Hospital Network Voice Agent 🏥
+#  - Hospital Network Voice Agent 🏥
 
 > AI-powered voice assistant for querying hospital networks - Part 1: API Integration, Data Loading & Hospital Search
 
